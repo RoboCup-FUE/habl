@@ -1,4 +1,5 @@
 import cv2
+import mediapipe as mp
 import numpy as np
 
 def count_open_fingers(hand_landmarks):
@@ -22,6 +23,10 @@ def count_open_fingers(hand_landmarks):
 
     return open_fingers
 
+# Initialize MediaPipe hands module
+mp_hands = mp.solutions.hands
+hands = mp_hands.Hands(static_image_mode=False, max_num_hands=2, min_detection_confidence=0.7, min_tracking_confidence=0.5)
+
 cap = cv2.VideoCapture(0)
 
 while True:
@@ -29,25 +34,38 @@ while True:
     if not ret:
         break
 
-    # Your code for hand detection and landmark estimation using OpenCV goes here
-    # Let's assume you have a variable hand_landmarks which contains the landmarks of the hand
+    # Convert the image to RGB
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    # Process the image with MediaPipe
+    results = hands.process(frame_rgb)
 
-    # Example: hand_landmarks = {"thumb": (x1, y1), "index": (x2, y2), ...}
+    if results.multi_hand_landmarks:
+        for hand_landmarks in results.multi_hand_landmarks:
+            # Extract landmark positions
+            hand_landmarks_dict = {}
+            for idx, landmark in enumerate(hand_landmarks.landmark):
+                hand_landmarks_dict[idx] = (int(landmark.x * frame.shape[1]), int(landmark.y * frame.shape[0]))
 
-    # Count the open fingers
-    open_fingers = count_open_fingers(hand_landmarks)
+            # Count the open fingers
+            open_fingers = count_open_fingers(hand_landmarks_dict)
 
-    # Determine which hand has more open fingers
-    if open_fingers > 0:
-        left_count = sum(hand_landmarks["left_hand"])
-        right_count = sum(hand_landmarks["right_hand"])
+            # Display the number of open fingers
+            cv2.putText(frame, f"Open Fingers: {open_fingers}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-        if left_count > right_count:
-            print("left")
-        elif right_count > left_count:
-            print("right")
+            # Determine which hand has more open fingers
+            if open_fingers > 0:
+                # Assuming the first hand detected is the left hand and the second one is the right hand
+                if len(results.multi_hand_landmarks) == 1:
+                    print("left")
+                elif len(results.multi_hand_landmarks) == 2:
+                    print("right")
 
-    # Display the frame with any overlays or information you need
+            # Draw landmarks on the image
+            for landmark in hand_landmarks.landmark:
+                x, y = int(landmark.x * frame.shape[1]), int(landmark.y * frame.shape[0])
+                cv2.circle(frame, (x, y), 5, (255, 0, 0), -1)
+
+    # Display the frame
     cv2.imshow("Hand Tracking", frame)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
